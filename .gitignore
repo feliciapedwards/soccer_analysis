@@ -1,0 +1,26 @@
+# Model weights (download automatically via ultralytics on first run)
+*.pt
+*.pth
+*.onnx
+*.weights
+models/
+
+# Video files
+*.mp4
+*.mov
+*.avi
+*.mkv
+data/
+
+# Output data
+output/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# Jupyter checkpoints
+.ipynb_checkpoints/

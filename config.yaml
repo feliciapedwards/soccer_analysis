@@ -1,0 +1,46 @@
+# Soccer Analysis Configuration
+# Edit goal_regions and pitch_boundary to match your video's pixel coordinates.
+# Use an image viewer or the calibration helper to find coordinates.
+
+# --- Detection ---
+yolo_model: "yolov8m.pt"          # yolov8n.pt for faster CPU runs
+yolo_confidence: 0.4
+device: ""                         # "" = auto (GPU if available, else CPU), or "cpu", "cuda", "mps"
+
+# --- Tracking ---
+tracker_config: "bytetrack.yaml"
+max_players: 25                    # Hard cap on unique player IDs — excess IDs are merged to nearest existing track
+
+# --- Team Classification ---
+team_kmeans_frames: 30             # Number of frames to sample for initial team clustering
+
+# --- Possession ---
+possession_distance_px: 80         # Max pixels from ball center to player center to assign possession
+
+# --- Pass ---
+pass_min_frames: 3                 # Min frames ball must travel freely before counting as a pass
+
+# --- Shot ---
+shot_speed_threshold_px: 25        # Min ball pixels/frame to consider a shot
+shot_min_frames: 3                 # Consecutive high-speed frames required before emitting SHOT
+
+# --- Goal Regions ---
+# Define as [x_min, y_min, x_max, y_max] in pixel coordinates.
+# Set both to null to disable goal detection until calibrated.
+goal_left:  null                   # e.g., [0, 250, 60, 450]
+goal_right: null                   # e.g., [1220, 250, 1280, 450]
+
+# --- Pitch Boundary ---
+# Ball outside this box triggers OUT_OF_BOUNDS.
+# Set to null to disable.
+pitch_boundary: null               # e.g., [50, 50, 1230, 670]
+
+# --- Foul Detection ---
+foul_proximity_px: 60              # Max distance between player centers to flag potential foul
+foul_min_frames: 4                 # Consecutive close frames required before emitting FOUL
+foul_speed_drop_threshold: 0.4    # Fraction of velocity drop to flag foul (0–1)
+foul_confidence: 0.5               # Fixed confidence assigned to foul events
+
+# --- Video Output ---
+team_color_0: [0, 255, 0]          # BGR color for team 0 bounding boxes (default: green)
+team_color_1: [255, 80, 0]         # BGR color for team 1 bounding boxes (default: blue)
