@@ -1,18 +1,10 @@
-# Model weights (download automatically via ultralytics on first run)
+# Model weights (large binaries — auto-downloaded by ultralytics on first run)
 *.pt
 *.pth
 *.onnx
 *.weights
-models/
 
-# Video files
-*.mp4
-*.mov
-*.avi
-*.mkv
-data/
-
-# Output data
+# Output (generated files)
 output/
 
 # Python
