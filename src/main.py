@@ -44,6 +44,9 @@ def run(video_path: str, config_path: str, output_path: str, output_video_path: 
         confidence=cfg.yolo_confidence,
         device=cfg.device,
         max_players=cfg.max_players,
+        track_buffer=cfg.track_buffer,
+        reid_enabled=cfg.reid_enabled,
+        reid_threshold=cfg.reid_threshold,
     )
 
     team_classifier = TeamClassifier(min_frames=cfg.team_kmeans_frames)

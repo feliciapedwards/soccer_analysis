@@ -9,7 +9,12 @@ device: ""                         # "" = auto (GPU if available, else CPU), or 
 
 # --- Tracking ---
 tracker_config: "bytetrack.yaml"
-max_players: 25                    # Hard cap on unique player IDs — excess IDs are merged to nearest existing track
+max_players: 25                    # Hard cap on unique player IDs
+track_buffer: 10                   # Frames ByteTrack holds a lost track before discarding (higher = fewer micro-occlusion ID changes)
+
+# --- Re-identification (ReID) ---
+reid_enabled: true                 # Match returning players by jersey color appearance
+reid_threshold: 20.0               # HSV L2 distance threshold — lower = stricter match (range: 10–40)
 
 # --- Team Classification ---
 team_kmeans_frames: 30             # Number of frames to sample for initial team clustering
@@ -36,10 +41,12 @@ goal_right: null                   # e.g., [1220, 250, 1280, 450]
 pitch_boundary: null               # e.g., [50, 50, 1230, 670]
 
 # --- Foul Detection ---
-foul_proximity_px: 60              # Max distance between player centers to flag potential foul
-foul_min_frames: 4                 # Consecutive close frames required before emitting FOUL
-foul_speed_drop_threshold: 0.4    # Fraction of velocity drop to flag foul (0–1)
-foul_confidence: 0.5               # Fixed confidence assigned to foul events
+# A foul is when a player falls to the ground (bbox becomes wide/flat).
+# foul_ground_aspect_ratio: bbox width/height ratio above which a player is considered grounded (1.2 = slightly wider than tall)
+# foul_min_frames: consecutive grounded frames required before emitting a FOUL event
+foul_ground_aspect_ratio: 1.2     # w/h ratio threshold — standing players are ~0.3–0.5, grounded ~1.0+
+foul_min_frames: 4                 # Consecutive grounded frames required
+foul_confidence: 0.7               # Confidence score assigned to foul events
 
 # --- Video Output ---
 team_color_0: [0, 255, 0]          # BGR color for team 0 bounding boxes (default: green)

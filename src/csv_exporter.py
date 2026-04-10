@@ -16,6 +16,8 @@ CSV_COLUMNS = [
     "ball_y",
     "ball_speed",
     "event_confidence",
+    "possession_player_id",
+    "possession_team_id",
 ]
 
 
@@ -43,6 +45,8 @@ class CSVExporter:
                 "ball_y": _fmt(event.ball_y),
                 "ball_speed": round(event.ball_speed, 4),
                 "event_confidence": round(event.event_confidence, 4),
+                "possession_player_id": event.possession_player_id,
+                "possession_team_id": event.possession_team_id,
             })
 
     def flush(self):

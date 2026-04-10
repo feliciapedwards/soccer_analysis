@@ -20,6 +20,8 @@ class Event:
     ball_y: Optional[float]
     ball_speed: float
     event_confidence: float
+    possession_player_id: int = -1   # who has the ball at this moment (-1 = in transit)
+    possession_team_id: int = -1     # that player's team
 
 
 def _dist(a: Tuple[float, float], b: Tuple[float, float]) -> float:
@@ -56,7 +58,10 @@ class EventDetector:
         # Temporal filters to reduce noise
         self._shot_fast_frames: int = 0           # consecutive frames with high ball speed
         self._shot_emitted: bool = False           # prevent repeat SHOT for same kick
-        self._foul_close_frames: Dict[tuple, int] = {}  # pair -> consecutive close frames
+        self._prev_player_aspects: Dict[int, float] = {}  # player_id -> bbox aspect ratio (w/h)
+        self._player_grounded_frames: Dict[int, int] = {}  # player_id -> consecutive grounded frames
+        self._foul_emitted_players: set = set()   # player_ids that already had a FOUL emitted (cooldown)
+        self._player_was_standing: Dict[int, bool] = {}  # player was upright before going down
 
     def process_frame(
         self,
@@ -80,6 +85,8 @@ class EventDetector:
 
         # --- BALL_POSITION event (every frame ball is detected) ---
         if ball_center:
+            poss_id = self._current_possessor if self._current_possessor is not None else -1
+            poss_team = team_ids.get(poss_id, -1) if poss_id != -1 else -1
             events.append(Event(
                 frame_number=frame,
                 timestamp_sec=timestamp_sec,
@@ -92,6 +99,8 @@ class EventDetector:
                 ball_y=ball_center[1],
                 ball_speed=self._ball_speed,
                 event_confidence=ball.confidence if ball else 0.0,
+                possession_player_id=poss_id,
+                possession_team_id=poss_team,
             ))
 
         # --- OUT_OF_BOUNDS ---
@@ -196,50 +205,46 @@ class EventDetector:
             else:
                 self._shot_fast_frames = 0
 
-        # --- FOUL detection: require `foul_min_frames` consecutive close frames ---
-        player_centers = {p.player_id: p.center for p in players}
-        player_ids = list(player_centers.keys())
-        active_pairs = set()
+        # --- FOUL detection: player on the ground (bbox becomes wide/flat) ---
+        # A standing player has aspect ratio (w/h) < 1 (tall bbox).
+        # A player on the ground has aspect ratio > foul_ground_aspect_ratio (wide/flat bbox).
+        # We require foul_min_frames consecutive "grounded" frames before emitting.
+        for player in players:
+            x1, y1, x2, y2 = player.bbox
+            w = x2 - x1
+            h = y2 - y1 if (y2 - y1) > 0 else 1
+            aspect = w / h  # > 1 means wide (grounded), < 1 means tall (standing)
 
-        for i in range(len(player_ids)):
-            for j in range(i + 1, len(player_ids)):
-                pid_a, pid_b = player_ids[i], player_ids[j]
-                pair = (min(pid_a, pid_b), max(pid_a, pid_b))
-                ca, cb = player_centers[pid_a], player_centers[pid_b]
-                proximity = _dist(ca, cb)
+            prev_aspect = self._prev_player_aspects.get(player.player_id, aspect)
+            is_grounded = aspect >= self.cfg.foul_ground_aspect_ratio
+            was_standing = self._player_was_standing.get(player.player_id, False)
 
-                if proximity < self.cfg.foul_proximity_px:
-                    active_pairs.add(pair)
-                    self._foul_close_frames[pair] = self._foul_close_frames.get(pair, 0) + 1
+            if is_grounded and was_standing and player.player_id not in self._foul_emitted_players:
+                self._player_grounded_frames[player.player_id] = (
+                    self._player_grounded_frames.get(player.player_id, 0) + 1
+                )
+                if self._player_grounded_frames[player.player_id] == self.cfg.foul_min_frames:
+                    team = team_ids.get(player.player_id, -1)
+                    events.append(Event(
+                        frame_number=frame, timestamp_sec=timestamp_sec,
+                        player_id=player.player_id, team_id=team,
+                        event_type="FOUL",
+                        player_x=player.center[0], player_y=player.center[1],
+                        ball_x=ball_center[0] if ball_center else None,
+                        ball_y=ball_center[1] if ball_center else None,
+                        ball_speed=self._ball_speed,
+                        event_confidence=self.cfg.foul_confidence,
+                    ))
+                    self._foul_emitted_players.add(player.player_id)
+            else:
+                # Player is standing — reset grounded counter and cooldown
+                self._player_grounded_frames.pop(player.player_id, None)
+                self._foul_emitted_players.discard(player.player_id)
+                # Mark as standing only if clearly upright (aspect well below threshold)
+                if aspect < self.cfg.foul_ground_aspect_ratio * 0.7:
+                    self._player_was_standing[player.player_id] = True
 
-                    if self._foul_close_frames[pair] == self.cfg.foul_min_frames:
-                        speed_a = _dist(ca, self._prev_player_centers.get(pid_a, ca))
-                        speed_b = _dist(cb, self._prev_player_centers.get(pid_b, cb))
-                        prev_speed_a = self._prev_player_speeds.get(pid_a, speed_a)
-                        prev_speed_b = self._prev_player_speeds.get(pid_b, speed_b)
-
-                        drop_a = (prev_speed_a - speed_a) / (prev_speed_a + 1e-6)
-                        drop_b = (prev_speed_b - speed_b) / (prev_speed_b + 1e-6)
-
-                        if drop_a > self.cfg.foul_speed_drop_threshold or drop_b > self.cfg.foul_speed_drop_threshold:
-                            foul_pid = pid_a if drop_a > drop_b else pid_b
-                            foul_center = player_centers[foul_pid]
-                            team = team_ids.get(foul_pid, -1)
-                            events.append(Event(
-                                frame_number=frame, timestamp_sec=timestamp_sec,
-                                player_id=foul_pid, team_id=team,
-                                event_type="FOUL",
-                                player_x=foul_center[0], player_y=foul_center[1],
-                                ball_x=ball_center[0] if ball_center else None,
-                                ball_y=ball_center[1] if ball_center else None,
-                                ball_speed=self._ball_speed,
-                                event_confidence=self.cfg.foul_confidence,
-                            ))
-
-        # Reset counters for pairs no longer close
-        for pair in list(self._foul_close_frames):
-            if pair not in active_pairs:
-                del self._foul_close_frames[pair]
+            self._prev_player_aspects[player.player_id] = aspect
 
         # Update previous state
         self._prev_ball_center = ball_center

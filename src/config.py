@@ -14,6 +14,9 @@ class Config:
     # Tracking
     tracker_config: str = "bytetrack.yaml"
     max_players: int = 25
+    track_buffer: int = 10
+    reid_enabled: bool = True
+    reid_threshold: float = 20.0
 
     # Team classification
     team_kmeans_frames: int = 30
@@ -36,10 +39,9 @@ class Config:
     pitch_boundary: Optional[List[int]] = None
 
     # Foul detection
-    foul_proximity_px: int = 60
+    foul_ground_aspect_ratio: float = 1.2
     foul_min_frames: int = 4
-    foul_speed_drop_threshold: float = 0.4
-    foul_confidence: float = 0.5
+    foul_confidence: float = 0.7
 
     # Video output colors (BGR)
     team_color_0: list = None
@@ -73,11 +75,13 @@ def load_config(path: str = "config.yaml") -> Config:
         goal_left=raw.get("goal_left"),
         goal_right=raw.get("goal_right"),
         pitch_boundary=raw.get("pitch_boundary"),
-        foul_proximity_px=raw.get("foul_proximity_px", 60),
+        foul_ground_aspect_ratio=raw.get("foul_ground_aspect_ratio", 1.2),
         foul_min_frames=raw.get("foul_min_frames", 4),
-        foul_speed_drop_threshold=raw.get("foul_speed_drop_threshold", 0.4),
-        foul_confidence=raw.get("foul_confidence", 0.5),
+        foul_confidence=raw.get("foul_confidence", 0.7),
         max_players=raw.get("max_players", 25),
+        track_buffer=raw.get("track_buffer", 10),
+        reid_enabled=raw.get("reid_enabled", True),
+        reid_threshold=raw.get("reid_threshold", 20.0),
         team_color_0=raw.get("team_color_0"),
         team_color_1=raw.get("team_color_1"),
     )
